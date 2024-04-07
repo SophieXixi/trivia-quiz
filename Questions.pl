@@ -29,4 +29,7 @@ trivia(ubc, 30, 'How many chancellors has UBC had before Point?', 18).
 get_random_question(Category, Score, Question) :- 
     findall(Q-A, trivia(Category, Score, Q, A), Qs),
     random_member(Question, Qs).
-  
+
+assert_question(Category, Score, QuestionId) :-
+    get_random_question(Category, Score, Q-A),
+    assert(question(Category, Score, QuestionId, Q, A, unanswered)).
