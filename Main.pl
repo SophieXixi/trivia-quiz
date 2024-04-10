@@ -1,6 +1,41 @@
 :- dynamic team1/1.
 :- dynamic team2/1.
 
+% some trivia about Prolog
+trivia(prolog, 10, 'When was Prolog first developed?', 1972).
+trivia(prolog, 10, 'What does Prolog stand for?', 'Programming in Logic').
+trivia(prolog, 10, 'What is the name of the most popular Prolog implementation?', 'SWI-Prolog').
+trivia(prolog, 20, 'Who is the creator of Prolog?', 'Alain Colmerauer').
+trivia(prolog, 20, 'What is the name of the first Prolog interpreter?', 'Dec-10 Prolog').
+trivia(prolog, 30, 'What is the name of the first Prolog compiler?', 'Warren Abstract Machine').
+trivia(prolog, 30, 'When was the first version of SWI-Prolog released?', 1987).
+trivia(prolog, 30, 'Who is the creator of SWI-Prolog?', 'Jan Wielemaker').
+
+% some trivia about Haskell
+trivia(haskell, 10, 'When was Haskell first developed?', 1990).
+trivia(haskell, 10, 'Who was Haskell named after?', 'Haskell Curry').
+trivia(haskell, 20, 'What is the full name of the most popular Haskell implementation?', 'Glasgow Haskell Compiler').
+trivia(haskell, 20, 'Who is the creator of Haskell?', 'Simon Peyton Jones').
+trivia(haskell, 30, 'Where was Haskell first developed?', 'University of Glasgow').
+trivia(haskell, 30, 'What is the name of the first Haskell interpreter?', 'Hugs').
+
+% some trivia about ubc
+trivia(ubc, 10, 'When was UBC founded?', 1908).
+trivia(ubc, 10, 'What is the name of the UBC mascot?', 'Thunderbird').
+trivia(ubc, 10, 'What is the name of the UBC motto?', 'Tuum Est').
+trivia(ubc, 20, 'What is the name of the UBC president?', 'Benoit-Antoine Bacon').
+trivia(ubc, 20, 'What is the name of the UBC chancellor?', 'Steven Lewis Point').
+trivia(ubc, 30, 'How many presidents has UBC had before Bacon?', 16).
+trivia(ubc, 30, 'How many chancellors has UBC had before Point?', 18).
+
+get_random_question(Category, Score, Question) :- 
+    findall(Q-A, trivia(Category, Score, Q, A), Qs),
+    random_member(Question, Qs).
+
+assert_question(Category, Score, QuestionId) :-
+    get_random_question(Category, Score, Q-A),
+    assert(question(Category, Score, QuestionId, Q, A, unanswered)).
+
 init_game :-
     %question(Category, Score, QuestionId, Question, Answer, Status)
     assert_question(prolog, 10, 1),
@@ -67,7 +102,8 @@ start_game :-
     format('1. enter the number in the cell to select the question.~n'),
     format('2. if you do not know the answer, just random guess.~n'),
     format('3. if you want to quit or giveup, just type \'giveup\' when answering.~n'),
-    format('4. during the answering part, type \'giveup\' will give you the first letter as a hint, and the score will be half.'),
+    format('4. during the answering part, type \'giveup\' , you will have a chance to get a hint.
+            and the system will give you the first letter as a hint, and the score will be half.~n'),
     teams_build_up(),
     team1(A),
     team2(B),
@@ -94,13 +130,13 @@ play_game(Team1, Score1, Team2, Score2) :-
     write(Team1), write(', select a question by entering its number: '),
     read(QuestionId),
     (   question(Category, Score, QuestionId, Question, Answer, unanswered) ->
-        format("Category: ~w, score: ~w, q: ~w, a: ~w, ~n", [Category, Score, Question, Answer]),
         write(Question), nl,
         write('Your answer'),
         read(UserAnswer),
         retract(question(Category, Score, QuestionId, Question, Answer, unanswered)), % Remove the unanswered question
         assert(question(Category, Score, QuestionId, Question, Answer, answered)), % Add as answered
         (   UserAnswer = Answer -> NewScore1 is Score1 + Score,
+            format('answer: ~w~n', [Answer]),
             format('Correct! ~w scores ~w points.~n', [Team1, Score]),
             format('total score: ~w: ~w points; ~w: ~w points.~n', [Team1, NewScore1, Team2, Score2]), nl,
             check_game_over(Team1, Score1, Team2, Score2),
@@ -148,42 +184,6 @@ play_game(Team1, Score1, Team2, Score2) :-
         play_game(Team1, Score1, Team2, Score2)
     ).
 
-give_up_actions(Score, Question, Answer, Team1, Score1, Team2, Score2) :-
-    format('entering'),
-    write('~w, are you sure you want to quit the game? 1 = yes, 2 = some hint please, 3 = no'),
-    read(Confirmation),
-    (Confirmation = 1 -> format('~w giveup.~n', [Team1]),
-        game_over_actions(Score1, Score2)
-    ;   Confirmation = 2 -> format('Here is a hint:'),
-        sub_atom(Answer, 0, 1, _, FirstLetter),
-        write('the first letter of the question \'~w\' is : ~w~n', [Question, FirstLetter]),
-        write('please answer:(include the first letter) '),
-        read(UserAnswer),
-        (   UserAnswer = Answer -> NewScore1 is Score1 + Score / 2,
-            format('Correct! ~w scores ~w points.~n', [Team1, Score]),
-            format('total score: ~w: ~w points; ~w: ~w points.~n', [Team1, NewScore1, Team2, Score2]), nl,
-            check_game_over(Score1, Score2),
-            play_game(Team2, Score2, Team1, NewScore1)
-        ;   format('Wrong answer! No points.~n'),
-            format('total score: ~w: ~w points; ~w: ~w points.~n', [Team1, Score1, Team2, Score2]), nl,
-            check_game_over(Score1, Score2),
-            play_game(Team2, Score2, Team1, Score1)
-        )
-    ;   format('Let\'s try again!'),
-        write('~w~n', [Question]),
-        read(UserAnswer),
-        (   UserAnswer = Answer -> NewScore1 is Score1 + Score,
-            format('Correct! ~w scores ~w points.~n', [Team1, Score]),
-            format('total score: ~w: ~w points; ~w: ~w points.~n', [Team1, NewScore1, Team2, Score2]), nl,
-            check_game_over(Score1, Score2),
-            play_game(Team2, Score2, Team1, NewScore1)
-        ;   format('Wrong answer! No points.~n'),
-            format('total score: ~w: ~w points; ~w: ~w points.~n', [Team1, Score1, Team2, Score2]), nl,
-            check_game_over(Score1, Score2),
-            play_game(Team2, Score2, Team1, Score1)
-        )
-    )
-
 % Check if there are any unanswered questions left, otherwise end the game
 check_game_over(Team1, Score1, Team2, Score2) :-
     \+ question(_, _, _, _, _, unanswered),!,  
@@ -193,7 +193,7 @@ check_game_over(_, _, _, _).
 % Game over info
 game_over_actions(Team1, Score1, Team2, Score2) :-
     write('Game over.'), nl,
-    format('~w scored ~w. ~n', [Team1, Score1]),
+    format('~w scored ~w. ', [Team1, Score1]),
     format('~w scored ~w. ~n', [Team2, Score2]),
     determine_winner(Team1, Score1, Team2, Score2),
     halt.
