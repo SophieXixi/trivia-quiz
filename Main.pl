@@ -122,12 +122,27 @@ teams_build_up() :-
     read_line_to_string(user_input, String2),
     atom_string(B, String2),
     assertz(team2(B)),
-    format("name: ~w~n", [B]).
+    format("name: ~w~n", [B]),
+    (A = B -> format("The team names are the same, please try again.~n"), retract(team1(A)), retract(team2(B)), teams_build_up(); true).
+
+% true if the given code is a digit
+is_digit(Code) :- Code >= 48, Code =< 57.
+
+% true if all codes in the list are digits
+all_digits([]).
+all_digits([H|T]) :-
+    is_digit(H),
+    all_digits(T).
 
 % helper to read a number from the user
 read_number(Number) :-
-    read_line_to_codes(user_input, Codes),
-    number_codes(Number, Codes).
+    read_line_to_codes(user_input, Input),
+    (   all_digits(Input)
+    ->  atom_codes(Atom, Input),
+        atom_number(Atom, Number)
+    ;   write('Invalid input. Please enter a valid number: '),
+        read_number(Number)
+    ).
 
 % helper to read a string from the user
 read_string(String) :-
@@ -140,58 +155,51 @@ play_game(Team1, Score1, Team2, Score2) :-
     write(Team1), write(', select a question by entering its number: '),
     read_number(QuestionId),
     (   question(Category, Score, QuestionId, Question, Answer, unanswered) ->
-        write(Question), nl,
-        write('Your answer: '),
-        read_string(UserAnswer),
         retract(question(Category, Score, QuestionId, Question, Answer, unanswered)), % Remove the unanswered question
         assert(question(Category, Score, QuestionId, Question, Answer, answered)), % Add as answered
-        (   UserAnswer = Answer -> NewScore1 is Score1 + Score,
-            format('answer: ~w~n', [Answer]),
-            format('Correct! ~w scores ~w points.~n', [Team1, Score]),
-            format('total score: ~w: ~w points; ~w: ~w points.~n', [Team1, NewScore1, Team2, Score2]), nl,
-            check_game_over(Team1, Score1, Team2, Score2),
-            play_game(Team2, Score2, Team1, NewScore1)
-        ;   UserAnswer = 'giveup' -> 
-            format('are you sure you want to quit the game?~n 1 = yes, 2 = some hint please, 3 = no'),
-            read(Confirmation),
-            (Confirmation = 1 -> format('~w giveup.~n', [Team1]),
-                game_over_actions(Team1, Score1, Team2, Score2)
-            ;   Confirmation = 2 -> sub_atom(Answer, 0, 1, _, FirstLetter),
-                format('Here is a hint:~nthe first letter of the question \'~w\' is : ~w~n', [Question, FirstLetter]),
-                write('please answer:(include the first letter)'), nl,
-                read(UserAns),
-                (   UserAns = Answer -> Half_score is Score / 2,
-                    NewScore1 is Score1 + Half_score,
-                    format('Correct! ~w scores ~w points.~n', [Team1, Half_score]),
-                    format('total score: ~w: ~w points; ~w: ~w points.~n', [Team1, NewScore1, Team2, Score2]), nl,
-                    check_game_over(Team1, Score1, Team2, Score2),
-                    play_game(Team2, Score2, Team1, NewScore1)
-                ;   format('Wrong answer! No points.~n'),
-                    format('total score: ~w: ~w points; ~w: ~w points.~n', [Team1, Score1, Team2, Score2]), nl,
-                    check_game_over(Team1, Score1, Team2, Score2),
-                    play_game(Team2, Score2, Team1, Score1)
-                )
-            ;   format('Let\'s try again!~n'),
-                write(Question),
-                read(UserAn),
-                (   UserAn = Answer -> NewScore1 is Score1 + Score,
-                    format('Correct! ~w scores ~w points.~n', [Team1, Score]),
-                    format('total score: ~w: ~w points; ~w: ~w points.~n', [Team1, NewScore1, Team2, Score2]), nl,
-                    check_game_over(Team1, Score1, Team2, Score2),
-                    play_game(Team2, Score2, Team1, NewScore1)
-                ;   format('Wrong answer! No points.~n'),
-                    format('total score: ~w: ~w points; ~w: ~w points.~n', [Team1, Score1, Team2, Score2]), nl,
-                    check_game_over(Team1, Score1, Team2, Score2),
-                    play_game(Team2, Score2, Team1, Score1)
-                )
-            )
-        ;   format('Wrong answer! No points.~n'),
-            format('total score: ~w: ~w points; ~w: ~w points.~n', [Team1, Score1, Team2, Score2]), nl,
-            check_game_over(Team1, Score1, Team2, Score2),
-            play_game(Team2, Score2, Team1, Score1)
-        )
+        answer_question(Team1, Score1, Team2, Score2, Score, Question, Answer)
     ;   format('Invalid input or question already answered.~n'),
         play_game(Team1, Score1, Team2, Score2)
+    ).
+
+% answer question logic
+answer_question(Team1, Score1, Team2, Score2, Score, Question, Answer) :-
+    write(Question), nl,
+    write('Your answer: '),
+    read_string(UserAnswer),
+    (   UserAnswer = Answer -> NewScore1 is Score1 + Score,
+        format('answer: ~w~n', [Answer]),
+        format('Correct! ~w scores ~w points.~n', [Team1, Score]),
+        format('total score: ~w: ~w points; ~w: ~w points.~n', [Team1, NewScore1, Team2, Score2]), nl,
+        check_game_over(Team1, Score1, Team2, Score2),
+        play_game(Team2, Score2, Team1, NewScore1)
+    ;   UserAnswer = 'giveup' -> 
+        format('are you sure you want to quit the game?~n1 = yes, 2 = some hint please, 3 = no '),
+        read_number(Confirmation),
+        (Confirmation = 1 -> format('~w giveup.~n', [Team1]),
+            game_over_actions(Team1, Score1, Team2, Score2)
+        ;   Confirmation = 2 -> sub_atom(Answer, 0, 1, _, FirstLetter),
+            format('Here is a hint:~nthe first letter of the question \'~w\' is : ~w~n', [Question, FirstLetter]),
+            write('please answer (include the first letter): '),
+            read_string(UserAns),
+            (   UserAns = Answer -> Half_score is Score / 2,
+                NewScore1 is Score1 + Half_score,
+                format('Correct! ~w scores ~w points.~n', [Team1, Half_score]),
+                format('total score: ~w: ~w points; ~w: ~w points.~n', [Team1, NewScore1, Team2, Score2]), nl,
+                check_game_over(Team1, Score1, Team2, Score2),
+                play_game(Team2, Score2, Team1, NewScore1)
+            ;   format('Wrong answer! No points.~n'),
+                format('total score: ~w: ~w points; ~w: ~w points.~n', [Team1, Score1, Team2, Score2]), nl,
+                check_game_over(Team1, Score1, Team2, Score2),
+                play_game(Team2, Score2, Team1, Score1)
+            )
+        ;   format('Let\'s try again!~n'),
+            answer_question(Team1, Score1, Team2, Score2, Score, Question, Answer)
+        )
+    ;   format('Wrong answer! No points.~n'),
+        format('total score: ~w: ~w points; ~w: ~w points.~n', [Team1, Score1, Team2, Score2]), nl,
+        check_game_over(Team1, Score1, Team2, Score2),
+        play_game(Team2, Score2, Team1, Score1)
     ).
 
 % Check if there are any unanswered questions left, otherwise end the game
